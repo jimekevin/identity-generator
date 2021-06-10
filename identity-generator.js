@@ -1,9 +1,22 @@
+/* jshint esversion: 11 */ 
 const fs = require('fs');
 const l = console.log;
+const repeat = (repeat, fn) => [...Array(repeat ?? 0)].map(fn);
 const randBetween = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+const randFromDistribution = (distrs) => {
+  const minVal = distrs.reduce((acc, cur) => Math.min(acc, cur));
+  distrs = distrs.map((val) => val * (1.0 / minVal ));
+  distrs = distrs.map((val, i, arr) => { return arr[i] += (i - 1 >= 0 ? arr[i - 1] : 0); });
+  const r = randBetween(0, distrs[distrs.length - 1]);
+  for (let i = 0; i < distrs.length; i++) if (distrs[i] >= r) return i;
+  return distrs.length - 1;
+};
 const zeroPad = (value) => value < 10 ? `0${value}` : value;
 Object.defineProperty(Array.prototype, 'rand', {
   value: function() { return this[randBetween(0, this.length - 1)]; }
+});
+Object.defineProperty(String.prototype, 'randTrunc', {
+  value: function(min, max) { return this.slice(0, randBetween(min ?? 3, Math.min(max ?? this.length - 1, this.length - 1))); }
 });
 const readJson = (file) => JSON.parse(fs.readFileSync(file)).items;
 const firstnames = readJson('firstnames.json');
@@ -24,18 +37,20 @@ const randIdentity = () => {
   const rb = randBirthday();
   const rcz = zips.rand();
   const [rc, rz] = [rcz.city, rcz.zip]; 
-  const randType = randBetween(0, 5);
+  const randType = randFromDistribution([1, 1, 1, 1, 0.5, 0.5]);
   let email;
   switch (randType) { // _ and - are mostly disallowed
     case 0: email = `${rf}.${rs}`; break;
     case 1: email = `${rs}.${rf}`; break;
     case 2: email = `${rf}${rs}`; break;
     case 3: email = `${rs}${rf}`; break;
+    case 4: email = `${rs.randTrunc()}${rf}`; break;
+    case 5: email = `${rs}${rf.randTrunc()}`; break;
   }
   email += randBetween(0, 5) === 0 ? addons.rand() : '';
   return [`${email}@${re}`, rf, rs, rb, rc, rz, randPass()];
 };
 const requested = process.argv[2] !== undefined ? parseInt(process.argv[2]) : 1;
 const randOut = () => l(randIdentity().join(','));
-l('email,firstname,surname,birthday,city,zip,pass');
-[...Array(requested).keys()].map(randOut);
+if (requested > 0) l('email,firstname,surname,birthday,city,zip,pass');
+repeat(requested, randOut);
